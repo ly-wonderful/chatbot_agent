@@ -1,0 +1,9 @@
+
+fastapi
+uvicorn[standard]
+supabase
+langgraph
+langchain-google-genai
+python-dotenv
+pydantic-settings
+langsmith
