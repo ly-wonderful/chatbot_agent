@@ -1,6 +1,6 @@
 import os
 from pydantic_settings import BaseSettings
-from typing import Optional, List
+from typing import Optional, List, Literal
 
 class Settings(BaseSettings):
 
@@ -14,8 +14,16 @@ class Settings(BaseSettings):
     supabase_key: str
     
 
+    # LLM Configuration
+    llm_provider: Literal["gemini", "openai"] = "openai"  # Default to Gemini
+    
+    # Gemini Configuration
     google_api_key: str
     gemini_model: str = "gemini-pro"
+    
+    # OpenAI Configuration
+    openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-4o"
     
 
     langchain_tracing_v2: bool = False

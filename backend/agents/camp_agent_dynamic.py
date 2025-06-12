@@ -1,8 +1,8 @@
 from langgraph.graph import StateGraph, END
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.schema import HumanMessage, SystemMessage
 from langsmith import traceable
 from agents.state import CampChatState
+from agents.llm_utils import get_llm_response
 from database.supabase_client import supabase_client
 from models.schemas import CampSearchFilters
 from config import settings
@@ -14,28 +14,17 @@ logger = logging.getLogger(__name__)
 
 @traceable(name="classify_intent")
 async def classify_intent_node(state: Dict[str, Any]) -> Dict[str, Any]:
-
     try:
-
         if isinstance(state, dict):
             chat_state = CampChatState(**state)
         else:
             chat_state = state
             
-
         last_message = chat_state.messages[-1].content if chat_state.messages else ""
         has_cached_results = bool(chat_state.last_search_results)
         
         logger.info(f"🎯 CLASSIFY - Message: '{last_message}' | Cached results: {len(chat_state.last_search_results) if has_cached_results else 0}")
         
-
-        llm = ChatGoogleGenerativeAI(
-            model=settings.gemini_model,
-            google_api_key=settings.google_api_key,
-            temperature=0
-        )
-        
-
         system_prompt = f"""You are an intent classifier for a summer camp search system.
 
 The user currently has {len(chat_state.last_search_results) if has_cached_results else 0} cached search results from previous queries.
@@ -76,17 +65,11 @@ Examples:
 - "hello" -> {{"intent": "general"}}
 """
         
-        messages = [
-            SystemMessage(content=system_prompt),
-            HumanMessage(content=f"User message: {last_message}")
-        ]
-        
-
-        response = llm.invoke(messages)
+        response_content = await get_llm_response(system_prompt, f"User message: {last_message}")
         
         try:
             # Clean the response content - remove markdown code blocks if present
-            content = response.content.strip()
+            content = response_content.strip()
             if content.startswith("```json"):
                 content = content[7:]  # Remove ```json
             if content.startswith("```"):
@@ -100,10 +83,8 @@ Examples:
             logger.error(f"❌ JSON parsing failed: {json_error}")
             intent_data = {"intent": "general", "search_criteria": {}}
         
-
         extracted_intent = intent_data.get("intent", "general")
         
-
         if extracted_intent == "filter" and not has_cached_results:
             extracted_intent = "search"
             logger.info(f"🔄 CLASSIFY - Converted filter→search (no cached results)")
@@ -111,16 +92,13 @@ Examples:
         chat_state.current_intent = extracted_intent
         logger.info(f"✅ CLASSIFY - Intent: {extracted_intent}")
         
-
         if extracted_intent in ["search", "filter"]:
             criteria = intent_data.get("search_criteria", {})
             chat_state.search_filters = {}
             
-
             if criteria.get("activity"):
                 chat_state.search_filters["category"] = criteria.get("activity")
             
-
             location = criteria.get("location", "")
             if location:
                 if "," in location:
@@ -131,7 +109,6 @@ Examples:
                 else:
                     chat_state.search_filters["location"] = location.strip()
             
-
             if criteria.get("age"):
                 try:
                     age = int(criteria.get("age"))

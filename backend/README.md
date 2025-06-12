@@ -40,6 +40,50 @@ backend/
 └── requirements.txt             # Python dependencies
 ```
 
+## Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```env
+# API Configuration
+DEBUG=false
+HOST=0.0.0.0
+PORT=8000
+
+# Database Configuration
+SUPABASE_URL=your_supabase_url
+SUPABASE_KEY=your_supabase_key
+
+# LLM Configuration
+LLM_PROVIDER=gemini  # or "openai"
+GOOGLE_API_KEY=your_google_api_key  # Required for Gemini
+GEMINI_MODEL=gemini-pro  # Optional, defaults to gemini-pro
+OPENAI_API_KEY=your_openai_api_key  # Required if using OpenAI
+OPENAI_MODEL=gpt-3.5-turbo  # Optional, defaults to gpt-3.5-turbo
+
+# LangSmith Configuration (Optional)
+LANGCHAIN_TRACING_V2=false
+LANGCHAIN_API_KEY=your_langsmith_api_key
+LANGCHAIN_PROJECT=summer-camp-chatbot
+
+# CORS Configuration
+CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+```
+
+## LLM Configuration
+
+The chatbot supports two LLM providers:
+
+1. **Gemini (Default)**
+   - Set `LLM_PROVIDER=gemini`
+   - Requires `GOOGLE_API_KEY`
+   - Optional: `GEMINI_MODEL` (defaults to "gemini-pro")
+
+2. **OpenAI**
+   - Set `LLM_PROVIDER=openai`
+   - Requires `OPENAI_API_KEY`
+   - Optional: `OPENAI_MODEL` (defaults to "gpt-3.5-turbo")
+
 ## Setup Instructions
 
 ### 1. Environment Setup
