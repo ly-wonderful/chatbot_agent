@@ -1,4 +1,4 @@
-from typing import Tuple, Optional
+from typing import Tuple, Optional, List, Dict
 import googlemaps
 from config import settings
 import logging
@@ -9,16 +9,35 @@ class DistanceCalculator:
     def __init__(self):
         self.gmaps = googlemaps.Client(key=settings.google_maps_api_key)
 
-    def get_coordinates(self, address: str) -> Optional[Tuple[float, float]]:
+    def get_coordinates(self, address: str) -> Optional[Tuple[float, float, str]]:
         """
         Get latitude and longitude coordinates for an address using Google Maps Geocoding API.
+        Returns a tuple of (latitude, longitude, formatted_address) for the most specific location found.
         """
         try:
             geocode_result = self.gmaps.geocode(address)
-            if geocode_result:
-                location = geocode_result[0]['geometry']['location']
-                return location['lat'], location['lng']
-            return None
+            if not geocode_result:
+                logger.warning(f"No results found for address: {address}")
+                return None
+
+            # Sort results by specificity (more specific addresses first)
+            # A more specific address typically has more address components
+            sorted_results = sorted(
+                geocode_result,
+                key=lambda x: len(x.get('address_components', [])),
+                reverse=True
+            )
+
+            # Get the most specific result
+            best_result = sorted_results[0]
+            location = best_result['geometry']['location']
+            formatted_address = best_result.get('formatted_address', address)
+
+            # Log the selected location
+            logger.info(f"Selected location for '{address}': {formatted_address}")
+            
+            return location['lat'], location['lng'], formatted_address
+
         except Exception as e:
             logger.error(f"Error geocoding address {address}: {e}")
             return None

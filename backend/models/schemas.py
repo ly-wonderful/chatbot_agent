@@ -80,9 +80,6 @@ class User(BaseModel):
 
 
 class CampSearchFilters(BaseModel):
-    location: Optional[str] = None
-    city: Optional[str] = None
-    state: Optional[str] = None
     category: Optional[str] = None
     min_grade: Optional[int] = None
     max_grade: Optional[int] = None
@@ -90,8 +87,8 @@ class CampSearchFilters(BaseModel):
     max_price: Optional[Decimal] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
-    latitude: Optional[float] = None
-    longitude: Optional[float] = None
+    # Location-based search fields
+    address: Optional[str] = None
     max_driving_distance_miles: Optional[float] = None
 
 class CampSearchResult(BaseModel):
