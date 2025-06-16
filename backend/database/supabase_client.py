@@ -2,6 +2,7 @@ from supabase import create_client, Client
 from config import settings
 from typing import List, Dict, Optional, Any
 from models.schemas import Camp, CampSession, Location, Organization, Category, CampSearchFilters
+from utils.distance_utils import distance_calculator
 import logging
 
 logger = logging.getLogger(__name__)
@@ -11,20 +12,18 @@ class SupabaseClient:
         self.client: Client = create_client(settings.supabase_url, settings.supabase_key)
     
     async def search_camps(self, filters: CampSearchFilters) -> List[Dict[str, Any]]:
-
         try:
             query = self.client.table('camps').select("""
                 *,
                 organizations(name, email, contact),
                 camp_sessions(
                     *,
-                    locations(name, city, state, address, formatted_address)
+                    locations(name, city, state, address, formatted_address, latitude, longitude)
                 ),
                 camp_categories(
                     categories(name)
                 )
             """)
-            
 
             if filters.min_grade is not None:
                 query = query.gte('min_grade', filters.min_grade)
@@ -36,9 +35,29 @@ class SupabaseClient:
                 query = query.lte('price', filters.max_price)
             
             result = query.execute()
-            
-
             camps = result.data
+
+            # Filter by location and distance if coordinates are provided
+            if (filters.latitude is not None and 
+                filters.longitude is not None and 
+                filters.max_driving_distance_miles is not None):
+                filtered_camps = []
+                for camp in camps:
+                    for session in camp.get('camp_sessions', []):
+                        location = session.get('locations')
+                        if location and location.get('latitude') and location.get('longitude'):
+                            distance = distance_calculator.calculate_driving_distance(
+                                filters.latitude,
+                                filters.longitude,
+                                location['latitude'],
+                                location['longitude']
+                            )
+                            if distance is not None and distance <= filters.max_driving_distance_miles:
+                                filtered_camps.append(camp)
+                                break
+                camps = filtered_camps
+
+            # Filter by city, state, or location text
             if filters.city or filters.state or filters.location:
                 filtered_camps = []
                 for camp in camps:
@@ -56,8 +75,8 @@ class SupabaseClient:
                                 filtered_camps.append(camp)
                                 break
                 camps = filtered_camps
-            
 
+            # Filter by category
             if filters.category:
                 filtered_camps = []
                 for camp in camps:

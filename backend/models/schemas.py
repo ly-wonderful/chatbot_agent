@@ -90,6 +90,9 @@ class CampSearchFilters(BaseModel):
     max_price: Optional[Decimal] = None
     start_date: Optional[date] = None
     end_date: Optional[date] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    max_driving_distance_miles: Optional[float] = None
 
 class CampSearchResult(BaseModel):
     camps: List[Camp]

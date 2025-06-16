@@ -15,11 +15,14 @@ class Settings(BaseSettings):
     
 
     # LLM Configuration
-    llm_provider: Literal["gemini", "openai"] = "openai"  # Default to Gemini
+    llm_provider: Literal["gemini", "openai"] = "gemini"  # Default to Gemini
     
     # Gemini Configuration
     google_api_key: str
     gemini_model: str = "gemini-pro"
+    
+    # Google Maps Configuration
+    google_maps_api_key: str
     
     # OpenAI Configuration
     openai_api_key: Optional[str] = None
