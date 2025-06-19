@@ -1,49 +1,32 @@
 import asyncio
-from database.supabase_client import supabase_client
-from models.schemas import CampSearchFilters
+from app.database.supabase_client import supabase_client
+from app.models.schemas import CampSearchFilters
+from scripts.collect_user_profile import collect_user_profile
 import logging
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-async def search_camps_by_address():
-    """Interactive function to search camps based on user's home address"""
+async def search_camps_with_profile():
+    """Search camps using user profile information"""
     
-    print("\n🏠 Camp Search by Distance")
-    print("------------------------")
+    # First collect user profile
+    profile = await collect_user_profile()
     
-    # Get user's home address
-    home_address = input("\nEnter your home address (e.g., '123 Main St, City, State'): ").strip()
-    if not home_address:
-        print("❌ No address provided. Using default San Francisco address.")
-        home_address = "123 Market St, San Francisco, CA"
-    
-    # Get maximum distance
-    while True:
-        try:
-            max_distance = input("\nEnter maximum driving distance in miles (default: 50): ").strip()
-            max_distance = float(max_distance) if max_distance else 50
-            if max_distance <= 0:
-                print("❌ Please enter a positive number.")
-                continue
-            break
-        except ValueError:
-            print("❌ Please enter a valid number.")
-    
-    # Get optional category filter
-    category = input("\nEnter camp category to filter by (optional, press Enter to skip): ").strip()
-    
-    print("\n🔍 Searching for camps...")
+    print("\n🔍 Searching for camps based on your profile...")
     
     try:
-        # Create search filters
+        # Create search filters from profile
         filters = CampSearchFilters(
-            address=home_address,
-            max_driving_distance_miles=max_distance
+            address=profile.address,
+            max_driving_distance_miles=profile.max_distance_miles,
+            min_grade=profile.child_grade,
+            max_grade=profile.child_grade
         )
         
-        if category:
-            filters.category = category
+        # Add category filter if preferred categories exist
+        if profile.preferred_categories:
+            filters.category = profile.preferred_categories[0]  # Use first preferred category
         
         # Search for camps
         result = await supabase_client.search_camps(filters)
@@ -51,17 +34,17 @@ async def search_camps_by_address():
         selected_location = result["selected_location"]
         
         if not camps:
-            print(f"\n❌ No camps found within {max_distance} miles of your location.")
-            if category:
-                print(f"Try removing the '{category}' category filter or increasing the distance.")
+            print(f"\n❌ No camps found within {profile.max_distance_miles} miles of your location.")
+            if profile.preferred_categories:
+                print(f"Try removing the '{profile.preferred_categories[0]}' category filter or increasing the distance.")
             return
         
         # Display results
-        print(f"\n✅ Found {len(camps)} camps within {max_distance} miles of your location")
-        if selected_location and selected_location != home_address:
+        print(f"\n✅ Found {len(camps)} camps within {profile.max_distance_miles} miles of your location")
+        if selected_location and selected_location != profile.address:
             print(f"📍 Using location: {selected_location}")
-        if category:
-            print(f"Filtered by category: {category}")
+        if profile.preferred_categories:
+            print(f"Filtered by category: {profile.preferred_categories[0]}")
         
         print("\n📋 Camp Details:")
         print("----------------")
@@ -100,11 +83,12 @@ async def search_camps_by_address():
         # Show summary
         print(f"\n📊 Summary:")
         print(f"   Total camps found: {len(camps)}")
-        print(f"   Search radius: {max_distance} miles")
-        print(f"   From address: {selected_location or home_address}")
+        print(f"   Search radius: {profile.max_distance_miles} miles")
+        print(f"   From address: {selected_location or profile.address}")
+        print(f"   For child: {profile.child_name} (Grade {profile.child_grade})")
         
     except Exception as e:
         print(f"\n❌ Error during search: {e}")
 
 if __name__ == "__main__":
-    asyncio.run(search_camps_by_address()) 
+    asyncio.run(search_camps_with_profile()) 

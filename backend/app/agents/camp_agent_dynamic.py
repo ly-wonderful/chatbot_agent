@@ -1,22 +1,28 @@
 from langgraph.graph import StateGraph, END
 from langchain.schema import HumanMessage, SystemMessage
 from langsmith import traceable
-from models.schemas import CampChatState
-from agents.llm_utils import get_llm_response
-from database.supabase_client import supabase_client
-from models.schemas import CampSearchFilters
-from config import settings
+from app.models.schemas import CampChatState
+from app.agents.llm_utils import get_llm_response
+from app.database.supabase_client import supabase_client
+from app.models.schemas import CampSearchFilters
+from app.config import settings
 from typing import Dict, Any, List, Optional
 import logging
 import json
 import asyncio
 from langchain_core.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
-from models.schemas import UserProfile
+from app.models.schemas import UserProfile
 from functools import partial
 import time
 
 logger = logging.getLogger(__name__)
+if not logger.hasHandlers():
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('%(asctime)s %(levelname)s %(name)s: %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+logger.setLevel(logging.INFO)
 
 def ensure_dict(state):
     if isinstance(state, CampChatState):
@@ -50,6 +56,11 @@ async def collect_profile_node(state: dict) -> dict:
             # Do NOT treat the first message as a profile answer
             logger.info("🔍 PROFILE DEBUG - Returning welcome message")
             return chat_state.dict()
+        
+        # Ensure profile is a UserProfile object (not a dict)
+        if isinstance(chat_state.profile, dict):
+            logger.info("🔍 PROFILE DEBUG - Converting profile dict to UserProfile object")
+            chat_state.profile = UserProfile(**chat_state.profile)
         
         # Check if this message has already been processed for the current step
         # Use a simple hash of the message content and current step to detect duplicates
@@ -97,26 +108,61 @@ async def collect_profile_node(state: dict) -> dict:
                     logger.info(f"🔍 PROFILE DEBUG - Setting child_grade to: {grade}")
                     chat_state.profile.child_grade = grade
                     chat_state.profile_step = "interests"
-                    chat_state.final_response = f"What are {chat_state.profile.child_name}'s interests? (Enter one interest per line, press Enter twice when done)"
+                    chat_state.final_response = f"What are {chat_state.profile.child_name}'s interests? (Enter interests separated by commas, e.g., soccer, basketball, art)"
                 else:
                     chat_state.final_response = "Please enter a valid grade between 0 and 12."
             except ValueError:
                 chat_state.final_response = "Please enter a valid number for the grade."
         
         elif chat_state.profile_step == "interests":
-            if not chat_state.profile.interests:
-                logger.info(f"🔍 PROFILE DEBUG - Setting first interest to: {last_message}")
-                chat_state.profile.interests = [last_message]
-                chat_state.final_response = "Enter another interest or press Enter twice to continue."
+            # Use the state dict to persist the interests_prompted flag
+            interests_prompted = state.get('interests_prompted', False)
+            logger.info(f"[DEBUG] interests_prompted={interests_prompted}, profile_step={chat_state.profile_step}, last_message='{last_message}'")
+            
+            if not interests_prompted:
+                logger.info("[DEBUG] Showing categories prompt for interests step.")
+                # Always show categories prompt the first time interests step is reached
+                try:
+                    categories = await supabase_client.get_unique_categories()
+                    if categories:
+                        category_list = "\n".join([f"{i+1}. {cat}" for i, cat in enumerate(categories)])
+                        chat_state.final_response = f"""What are {chat_state.profile.child_name}'s interests? \n\nHere are some popular camp categories to choose from:\n{category_list}\n\nYou can:\n• Select numbers from the list above (e.g., '1, 3, 5')\n• Type your own interests separated by commas (e.g., 'soccer, art, science')\n• Or combine both (e.g., '1, 3, robotics, swimming')\n\nWhat interests {chat_state.profile.child_name}?"""
+                    else:
+                        chat_state.final_response = f"What are {chat_state.profile.child_name}'s interests? (Enter interests separated by commas, e.g., soccer, basketball, art)"
+                except Exception as e:
+                    logger.error(f"Error fetching categories: {e}")
+                    chat_state.final_response = f"What are {chat_state.profile.child_name}'s interests? (Enter interests separated by commas, e.g., soccer, basketball, art)"
+                state['interests_prompted'] = True
+            elif interests_prompted and last_message and last_message.strip():
+                logger.info("[DEBUG] Processing user input for interests step.")
+                # Process the user's response
+                logger.info(f"🔍 PROFILE DEBUG - Processing interests: {last_message}")
+                interests_list = [interest.strip() for interest in last_message.split(',') if interest.strip()]
+                try:
+                    categories = await supabase_client.get_unique_categories()
+                    if categories:
+                        selected_categories = []
+                        for interest in interests_list:
+                            try:
+                                num = int(interest)
+                                if 1 <= num <= len(categories):
+                                    selected_categories.append(categories[num-1])
+                                else:
+                                    selected_categories.append(interest)
+                            except ValueError:
+                                selected_categories.append(interest)
+                        interests_list = selected_categories
+                except Exception as e:
+                    logger.error(f"Error processing category selections: {e}")
+                chat_state.profile.interests = interests_list
+                logger.info(f"🔍 PROFILE DEBUG - Added {len(interests_list)} interests: {interests_list}")
+                chat_state.profile_step = "address"
+                chat_state.final_response = f"Where are you located? Please enter your home address."
+                state['interests_prompted'] = False  # Reset for next session
             else:
-                if last_message:
-                    logger.info(f"🔍 PROFILE DEBUG - Adding interest: {last_message}")
-                    chat_state.profile.interests.append(last_message)
-                    chat_state.final_response = "Enter another interest or press Enter twice to continue."
-                else:
-                    logger.info("🔍 PROFILE DEBUG - Moving to address step")
-                    chat_state.profile_step = "address"
-                    chat_state.final_response = f"Where are you located? Please enter your home address."
+                logger.info("[DEBUG] Waiting for user to respond to interests prompt.")
+                # Waiting for user to respond to interests prompt
+                chat_state.final_response = None
         
         elif chat_state.profile_step == "address":
             logger.info(f"🔍 PROFILE DEBUG - Setting address to: {last_message}")
@@ -143,6 +189,7 @@ async def collect_profile_node(state: dict) -> dict:
                 chat_state.final_response = "Please enter a valid number for the distance."
         
         logger.info(f"🔍 PROFILE DEBUG - Final profile_step: {chat_state.profile_step}")
+        state['prev_profile_step'] = chat_state.profile_step
         return chat_state.dict()
         
     except Exception as e:
@@ -164,11 +211,11 @@ async def generate_sql_query_node(state: dict) -> dict:
         
         # Create search filters based on profile
         filters = CampSearchFilters(
-            grade=chat_state.profile.child_grade,
+            min_grade=chat_state.profile.child_grade,
+            max_grade=chat_state.profile.child_grade,
             address=chat_state.profile.address,
             max_driving_distance_miles=chat_state.profile.max_distance_miles,
-            interests=chat_state.profile.interests,
-            categories=chat_state.profile.preferred_categories
+            category=None  # We'll add category filtering later if needed
         )
         
         # Store filters for database query
@@ -384,15 +431,27 @@ class CampAgent:
                     "final_response": None,
                     "needs_profile": True,
                     "profile": None,
-                    "profile_step": None
+                    "profile_step": None,
+                    "last_processed_message": None
                 }
+            
             # Ensure 'messages' is a list
             if "messages" not in state or not isinstance(state["messages"], list):
                 state["messages"] = []
+            
+            # Add the new message
             state["messages"].append(HumanMessage(content=message))
-            # Run the workflow
+            
+            # Run the workflow with the current state
             result = await self.graph.ainvoke(state)
+            
+            # Ensure we return a complete state
+            if not isinstance(result, dict):
+                result = state.copy()
+                result["final_response"] = "I'm having trouble processing your request. Please try again."
+            
             return result
+            
         except Exception as e:
             logger.error(f"❌ PROCESS - Error: {e}")
             # Always return a complete state, just update final_response
@@ -406,7 +465,8 @@ class CampAgent:
                     "final_response": None,
                     "needs_profile": True,
                     "profile": None,
-                    "profile_step": None
+                    "profile_step": None,
+                    "last_processed_message": None
                 }
             state = dict(state)  # Make a copy
             state["final_response"] = "I'm having trouble processing your request. Please try again."

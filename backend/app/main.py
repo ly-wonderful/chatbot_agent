@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from api.chat import router as chat_router
-from config import settings
+from app.api.chat import router as chat_router
+from app.config import settings
 import logging
 import os
 
@@ -54,7 +54,7 @@ async def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(
-        "main:app",
+        "app.main:app",
         host=settings.host,
         port=settings.port,
         reload=settings.debug

@@ -1,248 +1,137 @@
-# Summer Camp Chatbot - Backend
+# Summer Camp Chatbot Backend
 
-A FastAPI-based backend service for an AI-powered summer camp discovery chatbot. The system uses LangGraph for intelligent conversation flow and integrates with Supabase for camp data storage.
+A FastAPI-based backend for an intelligent summer camp search chatbot that helps parents find the perfect camps for their children.
 
-## Architecture
-
-### Core Components
-
-- **FastAPI**: Web framework for REST API endpoints
-- **LangGraph**: AI agent orchestration with state management
-- **Google Gemini**: Large language model for natural language processing
-- **Supabase**: Database for camp data storage and retrieval
-- **LangSmith**: Optional tracing and monitoring for AI workflows
-
-### Key Features
-
-- Intelligent intent classification (search, filter, general conversation)
-- Session-based conversation memory
-- Dynamic camp search with natural language queries
-- Real-time filtering of cached results
-- Contextual response generation
-
-## Project Structure
+## 🏗️ Project Structure
 
 ```
 backend/
-├── agents/
-│   ├── camp_agent_dynamic.py    # Main AI agent with LangGraph workflow
-│   ├── state.py                 # Conversation state management
-│   └── tools/
-│       └── database_tools.py    # LangGraph tool definitions
-├── api/
-│   └── chat.py                  # FastAPI chat endpoints
-├── database/
-│   └── supabase_client.py       # Supabase database client
-├── models/
-│   └── schemas.py               # Pydantic data models
-├── config.py                    # Application configuration
-├── main.py                      # FastAPI application entry point
-└── requirements.txt             # Python dependencies
+├── app/                          # Main application code
+│   ├── __init__.py
+│   ├── main.py                   # FastAPI application entry point
+│   ├── config.py                 # Configuration settings
+│   ├── api/                      # API routes and endpoints
+│   │   ├── __init__.py
+│   │   └── chat.py              # Chat API endpoints
+│   ├── agents/                   # AI agents and workflows
+│   │   ├── __init__.py
+│   │   ├── camp_agent_dynamic.py # Main camp search agent
+│   │   ├── llm_utils.py         # LLM utility functions
+│   │   └── tools/               # Agent tools
+│   │       ├── __init__.py
+│   │       └── database_tools.py
+│   ├── database/                 # Database layer
+│   │   ├── __init__.py
+│   │   └── supabase_client.py   # Supabase client
+│   ├── models/                   # Data models and schemas
+│   │   ├── __init__.py
+│   │   └── schemas.py           # Pydantic models
+│   └── utils/                    # Utility functions
+│       ├── __init__.py
+│       └── distance_utils.py    # Distance calculation utilities
+├── tests/                        # Test files
+│   ├── __init__.py
+│   ├── test_three_agent_system.py
+│   ├── test_camp_search.py
+│   ├── test_chat.py
+│   ├── test_distance_search.py
+│   └── test_supabase.py
+├── scripts/                      # Utility scripts
+│   ├── collect_user_profile.py
+│   ├── get_categories.py
+│   └── visualize_graph.py
+├── docs/                         # Documentation and visualizations
+│   ├── camp_agent_workflow.mmd
+│   └── camp_agent_workflow
+├── requirements.txt              # Python dependencies
+├── .env.example                  # Environment variables template
+└── README.md                     # This file
 ```
 
-## Environment Variables
+## 🚀 Quick Start
 
-Create a `.env` file in the root directory with the following variables:
+1. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-```env
-# API Configuration
-DEBUG=false
-HOST=0.0.0.0
-PORT=8000
+2. **Set up environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your API keys
+   ```
 
-# Database Configuration
-SUPABASE_URL=your_supabase_url
-SUPABASE_KEY=your_supabase_key
+3. **Run the application:**
+   ```bash
+   python -m app.main
+   ```
 
-# LLM Configuration
-LLM_PROVIDER=gemini  # or "openai"
-GOOGLE_API_KEY=your_google_api_key  # Required for Gemini
-GEMINI_MODEL=gemini-pro  # Optional, defaults to gemini-pro
-OPENAI_API_KEY=your_openai_api_key  # Required if using OpenAI
-OPENAI_MODEL=gpt-3.5-turbo  # Optional, defaults to gpt-3.5-turbo
+4. **Run tests:**
+   ```bash
+   python -m pytest tests/
+   ```
 
-# LangSmith Configuration (Optional)
-LANGCHAIN_TRACING_V2=false
-LANGCHAIN_API_KEY=your_langsmith_api_key
-LANGCHAIN_PROJECT=summer-camp-chatbot
+## 🧪 Testing
 
-# CORS Configuration
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-```
+The project includes comprehensive tests for all components:
 
-## LLM Configuration
+- **Agent Tests**: Test the three-agent workflow system
+- **API Tests**: Test the FastAPI endpoints
+- **Database Tests**: Test Supabase integration
+- **Utility Tests**: Test distance calculations and other utilities
 
-The chatbot supports two LLM providers:
-
-1. **Gemini (Default)**
-   - Set `LLM_PROVIDER=gemini`
-   - Requires `GOOGLE_API_KEY`
-   - Optional: `GEMINI_MODEL` (defaults to "gemini-pro")
-
-2. **OpenAI**
-   - Set `LLM_PROVIDER=openai`
-   - Requires `OPENAI_API_KEY`
-   - Optional: `OPENAI_MODEL` (defaults to "gpt-3.5-turbo")
-
-## Setup Instructions
-
-### 1. Environment Setup
-
-Create a `.env` file in the backend directory:
-
-```env
-# Supabase Configuration
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_anon_key
-
-# Google AI Configuration
-GOOGLE_API_KEY=your_google_gemini_api_key
-GEMINI_MODEL=gemini-pro
-
-# LangSmith Configuration (Optional)
-LANGCHAIN_TRACING_V2=false
-LANGCHAIN_API_KEY=your_langsmith_api_key
-LANGCHAIN_PROJECT=summer-camp-chatbot
-
-# Application Configuration
-APP_NAME=Summer Camp Chatbot API
-DEBUG=true
-HOST=0.0.0.0
-PORT=8000
-CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
-```
-
-### 2. Install Dependencies
-
+Run specific tests:
 ```bash
-pip install -r requirements.txt
+# Test the three-agent system
+python tests/test_three_agent_system.py
+
+# Test the API
+python tests/test_chat.py
+
+# Test database functionality
+python tests/test_supabase.py
 ```
 
-### 3. Database Setup
+## 🏛️ Architecture
 
-Ensure your Supabase database has the following tables:
-- `organizations`
-- `locations` 
-- `camps`
-- `camp_sessions`
-- `categories`
-- `camp_categories`
+### Three-Agent System
 
-### 4. Run the Application
+The chatbot uses a three-agent architecture:
 
-```bash
-python main.py
-```
+1. **Profile Collector Agent**: Collects user and child information
+2. **SQL Query Generator Agent**: Converts profile to database search filters
+3. **Table Formatter Agent**: Formats search results for display
 
-The API will be available at `http://localhost:8000`
+### Key Components
 
-## API Endpoints
+- **FastAPI**: Web framework for the API
+- **LangGraph**: Workflow orchestration
+- **Supabase**: Database and authentication
+- **Google Maps API**: Distance calculations
+- **Gemini/OpenAI**: LLM providers
 
-### Health Check
-```
-GET /health
-```
-Returns application health status.
+## 🔧 Configuration
 
-### Chat Endpoint
-```
-POST /api/v1/chat
-```
+Key configuration options in `app/config.py`:
 
-**Request Body:**
-```json
-{
-  "message": "Find soccer camps for 8 year olds",
-  "session_id": "optional-session-id"
-}
-```
+- **LLM Provider**: Choose between Gemini and OpenAI
+- **Database**: Supabase connection settings
+- **API Keys**: Google Maps, LLM providers
+- **CORS**: Cross-origin resource sharing settings
 
-**Response:**
-```json
-{
-  "response": "I found 5 soccer camps suitable for 8-year-olds...",
-  "session_id": "generated-or-provided-session-id",
-  "context": {
-    "intent": "search",
-    "search_count": 5,
-    "conversation_length": 2,
-    "has_cached_results": true
-  }
-}
-```
+## 📊 API Endpoints
 
-## AI Agent Workflow
+- `POST /api/v1/chat`: Main chat endpoint
+- `GET /api/v1/chat/health`: Health check
+- `GET /health`: Application health check
 
-The system uses a sophisticated LangGraph workflow:
+## 🤝 Contributing
 
-1. **Intent Classification**: Determines if the user wants to search, filter, or have general conversation
-2. **Conditional Routing**: 
-   - `search`: Query database for new camps
-   - `filter`: Filter existing cached results
-   - `general`: Generate conversational response
-3. **Response Generation**: Create contextual, helpful responses using Gemini
+1. Follow the established project structure
+2. Add tests for new features
+3. Update documentation as needed
+4. Use proper logging and error handling
 
-### Session Management
+## 📝 License
 
-- Each conversation maintains state across multiple messages
-- Cached search results persist within sessions
-- Intent classification considers conversation history
-
-## Testing
-
-### Run Database Tests
-```bash
-python test_camp_search.py
-```
-
-### Run Chat Tests
-```bash
-python test_chat.py
-```
-
-### Get Available Categories
-```bash
-python get_categories.py
-```
-
-## Configuration Options
-
-### LangSmith Integration
-Enable detailed AI workflow tracing by setting:
-```env
-LANGCHAIN_TRACING_V2=true
-LANGCHAIN_API_KEY=your_api_key
-LANGCHAIN_PROJECT=your_project_name
-```
-
-### CORS Configuration
-Update `CORS_ORIGINS` in `.env` to allow requests from your frontend domain.
-
-### Model Selection
-Change `GEMINI_MODEL` to use different Gemini variants:
-- `gemini-pro`
-- `gemini-pro-vision`
-
-## Development
-
-### Adding New Features
-1. Update state models in `agents/state.py`
-2. Add new nodes to the LangGraph workflow in `camp_agent_dynamic.py`
-3. Create corresponding API endpoints in `api/`
-4. Update database schemas in `models/schemas.py`
-
-### Debugging
-- Enable debug mode: `DEBUG=true` in `.env`
-- Check logs for detailed workflow execution
-- Use LangSmith for AI workflow visualization
-
-## Dependencies
-
-- **fastapi**: Web framework
-- **uvicorn**: ASGI server
-- **supabase**: Database client
-- **langgraph**: AI agent orchestration
-- **langchain-google-genai**: Google AI integration
-- **python-dotenv**: Environment variable management
-- **pydantic-settings**: Configuration management
-- **langsmith**: AI workflow monitoring
+This project is licensed under the MIT License.

@@ -1,6 +1,6 @@
 import asyncio
-from database.supabase_client import supabase_client
-from models.schemas import CampSearchFilters
+from app.database.supabase_client import supabase_client
+from app.models.schemas import CampSearchFilters
 
 async def test_camp_search():
 

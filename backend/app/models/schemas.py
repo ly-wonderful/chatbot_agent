@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
-from typing import Optional, List
+from pydantic import BaseModel, Field, validator
+from typing import Optional, List, Dict, Any
 from datetime import datetime, date, time
 from decimal import Decimal
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 
 class ChatMessage(BaseModel):
@@ -95,3 +96,36 @@ class CampSearchResult(BaseModel):
     camps: List[Camp]
     total_count: int
     filters_applied: CampSearchFilters
+
+class UserProfile(BaseModel):
+    name: str = Field(..., description="Parent/Guardian's name")
+    child_name: str = Field(..., description="Child's name")
+    child_age: int = Field(..., description="Child's age", ge=4, le=18)
+    child_grade: int = Field(..., description="Child's grade level", ge=0, le=12)
+    interests: List[str] = Field(default_factory=list, description="Child's interests and activities")
+    address: str = Field(..., description="Home address for distance-based search")
+    max_distance_miles: float = Field(..., description="Maximum driving distance in miles", gt=0)
+    special_needs: Optional[str] = Field(None, description="Any special needs or accommodations required")
+    preferred_categories: Optional[List[str]] = Field(None, description="Preferred camp categories")
+
+class CampChatState(BaseModel):
+    messages: List[HumanMessage] = Field(default_factory=list)
+    session_id: str
+    current_intent: Optional[str] = None
+    search_filters: Optional[Dict[str, Any]] = None
+    last_search_results: Optional[List[Dict[str, Any]]] = None
+    final_response: Optional[str] = None
+    needs_profile: bool = False
+    profile: Optional[UserProfile] = None
+    profile_step: Optional[str] = None  # Current step in profile collection
+    last_processed_message: Optional[str] = None  # Track last processed message to prevent duplicates
+
+    @validator('profile', pre=True, always=True)
+    def ensure_profile_object(cls, v):
+        if v is None:
+            return v
+        if isinstance(v, UserProfile):
+            return v
+        if isinstance(v, dict):
+            return UserProfile(**v)
+        return v

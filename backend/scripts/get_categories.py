@@ -1,5 +1,5 @@
 import asyncio
-from database.supabase_client import supabase_client
+from app.database.supabase_client import supabase_client
 
 async def get_all_categories():
 

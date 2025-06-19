@@ -1,0 +1,64 @@
+flowchart TD
+    Start(["Start"]) --> CheckProfile{"Check Profile"}
+    
+    %% Profile Collection Branch
+    CheckProfile -->|"No Profile"| ProfileStart["Profile Collection Start"]
+    ProfileStart --> BasicInfo["Collect Basic Info"]
+    BasicInfo --> Name["Name"]
+    BasicInfo --> ChildName["Child's Name"]
+    BasicInfo --> ChildAge["Child's Age"]
+    BasicInfo --> ChildGrade["Child's Grade"]
+    
+    ProfileStart --> Preferences["Collect Preferences"]
+    Preferences --> Interests["Interests"]
+    Preferences --> Address["Address"]
+    Preferences --> MaxDistance["Max Distance"]
+    Preferences --> SpecialNeeds["Special Needs"]
+    Preferences --> Categories["Camp Categories"]
+    
+    ProfileStart --> ProfileComplete["Profile Complete"]
+    
+    %% Main Workflow Branch
+    CheckProfile -->|"Has Profile"| ClassifyIntent["Classify Intent"]
+    ClassifyIntent -->|"Search Intent"| SearchCamps["Search Camps\n(Using Profile Filters)"]
+    ClassifyIntent -->|"Filter Intent"| FilterResults["Filter Results\n(Refining Profile-based Results)"]
+    ClassifyIntent -->|"General Intent"| GenerateResponse["Generate Response\n(Profile-aware)"]
+    
+    SearchCamps --> GenerateResponse
+    FilterResults --> GenerateResponse
+    GenerateResponse --> End(["End"])
+    
+    %% Subgraphs for better organization
+    subgraph ProfileCollection["Profile Collection"]
+        ProfileStart --> BasicInfo
+        ProfileStart --> Preferences
+        ProfileStart --> ProfileComplete
+    end
+    
+    subgraph BasicInfoCollection["Basic Information"]
+        Name
+        ChildName
+        ChildAge
+        ChildGrade
+    end
+    
+    subgraph PreferenceCollection["Preferences"]
+        Interests
+        Address
+        MaxDistance
+        SpecialNeeds
+        Categories
+    end
+    
+    %% Styling
+    classDef system fill:#b3e6ff,stroke:#333,stroke-width:2px
+    classDef decision fill:#b3ffb3,stroke:#333,stroke-width:2px
+    classDef action fill:#ffffb3,stroke:#333,stroke-width:2px
+    classDef output fill:#ffb3b3,stroke:#333,stroke-width:2px
+    classDef subgraph fill:#f5f5f5,stroke:#333,stroke-width:1px
+    
+    class Start,End system
+    class CheckProfile,ClassifyIntent decision
+    class SearchCamps,FilterResults,BasicInfo,Preferences action
+    class GenerateResponse output
+    class ProfileCollection,BasicInfoCollection,PreferenceCollection subgraph 

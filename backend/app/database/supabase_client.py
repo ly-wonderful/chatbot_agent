@@ -1,8 +1,8 @@
 from supabase import create_client, Client
-from config import settings
-from typing import List, Dict, Optional, Any
-from models.schemas import Camp, CampSession, Location, Organization, Category, CampSearchFilters
-from utils.distance_utils import distance_calculator
+from app.config import settings
+from app.models.schemas import Camp, CampSession, Location, Organization, Category, CampSearchFilters
+from app.utils.distance_utils import distance_calculator
+from typing import Dict, List, Any, Optional
 import logging
 
 logger = logging.getLogger(__name__)
@@ -133,5 +133,53 @@ class SupabaseClient:
             logger.error(f"Error getting organizations: {e}")
             return []
 
+    async def get_unique_categories(self) -> List[str]:
+        """Get unique camp categories from the database"""
+        try:
+            result = self.client.table('camp_categories').select('categories(name)').execute()
+            categories = set()
+            for item in result.data:
+                if item.get('categories') and item['categories'].get('name'):
+                    categories.add(item['categories']['name'])
+            return sorted(list(categories))
+        except Exception as e:
+            logger.error(f"Error fetching categories: {e}")
+            return []
+
+    async def get_unique_locations(self) -> List[Dict[str, str]]:
+        """Get unique locations from the database"""
+        try:
+            result = self.client.table('camp_sessions').select('locations(city, state)').execute()
+            locations = set()
+            for item in result.data:
+                if item.get('locations'):
+                    loc = item['locations']
+                    if loc.get('city') and loc.get('state'):
+                        locations.add((loc['city'], loc['state']))
+            return [{"city": city, "state": state} for city, state in sorted(locations)]
+        except Exception as e:
+            logger.error(f"Error fetching locations: {e}")
+            return []
+
+    async def get_grade_range(self) -> Dict[str, int]:
+        """Get the minimum and maximum grade levels from the database"""
+        try:
+            result = self.client.table('camps').select('min_grade, max_grade').execute()
+            min_grade = float('inf')
+            max_grade = float('-inf')
+            
+            for camp in result.data:
+                if camp.get('min_grade') is not None:
+                    min_grade = min(min_grade, camp['min_grade'])
+                if camp.get('max_grade') is not None:
+                    max_grade = max(max_grade, camp['max_grade'])
+            
+            return {
+                "min": int(min_grade) if min_grade != float('inf') else 0,
+                "max": int(max_grade) if max_grade != float('-inf') else 12
+            }
+        except Exception as e:
+            logger.error(f"Error fetching grade range: {e}")
+            return {"min": 0, "max": 12}
 
 supabase_client = SupabaseClient()

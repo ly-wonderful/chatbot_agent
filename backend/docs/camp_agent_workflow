@@ -1,0 +1,27 @@
+// Camp Agent Workflow
+digraph {
+	rankdir=TB
+	start [label=Start fillcolor=lightblue shape=oval style=filled]
+	classify [label="Classify Intent" fillcolor=lightgreen shape=box style=filled]
+	search [label="Search Camps" fillcolor=lightyellow shape=box style=filled]
+	filter [label="Filter Results" fillcolor=lightyellow shape=box style=filled]
+	response [label="Generate Response" fillcolor=lightpink shape=box style=filled]
+	end [label=End fillcolor=lightblue shape=oval style=filled]
+	start -> classify [label="New Message"]
+	classify -> search [label="Search Intent"]
+	classify -> filter [label="Filter Intent"]
+	classify -> response [label="General Intent"]
+	search -> response [label="Search Results"]
+	filter -> response [label="Filtered Results"]
+	response -> end [label="Response Generated"]
+	subgraph cluster_profile {
+		label="Profile Collection" style=dashed
+		profile_start [label="Profile Start" fillcolor=lightgreen shape=box style=filled]
+		collect_info [label="Collect Info" fillcolor=lightyellow shape=box style=filled]
+		profile_end [label="Profile End" fillcolor=lightgreen shape=box style=filled]
+		profile_start -> collect_info
+		collect_info -> profile_end
+	}
+	classify -> profile_start [label="Profile Needed" style=dashed]
+	profile_end -> search [label="Profile Complete" style=dashed]
+}
