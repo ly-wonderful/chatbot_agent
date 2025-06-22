@@ -1,19 +1,65 @@
-from supabase import create_client, Client
-from config import settings
+"""
+Standalone Supabase client for database operations
+"""
+import os
 from typing import List, Dict, Optional, Any
-from models.schemas import Camp, CampSession, Location, Organization, Category, CampSearchFilters
-from utils.distance_utils import distance_calculator
+from supabase import create_client, Client
 import logging
 
 logger = logging.getLogger(__name__)
 
+
 class SupabaseClient:
-    def __init__(self):
-        self.client: Client = create_client(settings.supabase_url, settings.supabase_key)
+    """Supabase database client for summer camp data"""
     
-    async def search_camps(self, filters: CampSearchFilters) -> Dict[str, Any]:
+    def __init__(self, supabase_url: str = None, supabase_key: str = None):
+        """
+        Initialize Supabase client
+        
+        Args:
+            supabase_url: Supabase project URL (defaults to environment variable)
+            supabase_key: Supabase API key (defaults to environment variable)
+        """
+        self.supabase_url = supabase_url or os.getenv("SUPABASE_URL")
+        self.supabase_key = supabase_key or os.getenv("SUPABASE_KEY")
+        
+        if not self.supabase_url or not self.supabase_key:
+            raise ValueError("Supabase URL and key must be provided or set as environment variables")
+        
+        self.client: Client = create_client(self.supabase_url, self.supabase_key)
+        logger.info("Supabase client initialized successfully")
+    
+    async def test_connection(self) -> Dict[str, Any]:
+        """
+        Test database connection
+        
+        Returns:
+            Connection status information
+        """
         try:
-            query = self.client.table('camps').select("""
+            # Simple query to test connection
+            result = self.client.table("organizations").select("id").limit(1).execute()
+            return {
+                "status": "connected",
+                "message": "Successfully connected to Supabase",
+                "data_count": len(result.data) if result.data else 0
+            }
+        except Exception as e:
+            logger.error(f"Database connection test failed: {e}")
+            return {
+                "status": "error",
+                "message": f"Connection failed: {str(e)}"
+            }
+    
+    async def get_all_camps(self) -> List[Dict[str, Any]]:
+        """
+        Get all camps with related data
+        
+        Returns:
+            List of camps with organization and session information
+        """
+        try:
+            result = self.client.table('camps').select("""
                 *,
                 organizations(name, email, contact),
                 camp_sessions(
@@ -23,70 +69,23 @@ class SupabaseClient:
                 camp_categories(
                     categories(name)
                 )
-            """)
-
-            if filters.min_grade is not None:
-                query = query.gte('min_grade', filters.min_grade)
-            if filters.max_grade is not None:
-                query = query.lte('max_grade', filters.max_grade)
-            if filters.min_price is not None:
-                query = query.gte('price', filters.min_price)
-            if filters.max_price is not None:
-                query = query.lte('price', filters.max_price)
+            """).execute()
             
-            result = query.execute()
-            camps = result.data
-
-            # Filter by location and distance if address is provided
-            selected_location = None
-            if filters.address and filters.max_driving_distance_miles is not None:
-                # Get coordinates for the address
-                geocode_result = distance_calculator.get_coordinates(filters.address)
-                if not geocode_result:
-                    logger.error(f"Could not find coordinates for address: {filters.address}")
-                    return {"camps": [], "selected_location": None}
-                
-                lat, lng, formatted_address = geocode_result
-                selected_location = formatted_address
-                logger.info(f"Found coordinates for {filters.address}: {lat}, {lng}")
-                
-                filtered_camps = []
-                for camp in camps:
-                    for session in camp.get('camp_sessions', []):
-                        location = session.get('locations')
-                        if location and location.get('latitude') and location.get('longitude'):
-                            distance = distance_calculator.calculate_driving_distance(
-                                lat, lng,
-                                location['latitude'],
-                                location['longitude']
-                            )
-                            if distance is not None and distance <= filters.max_driving_distance_miles:
-                                filtered_camps.append(camp)
-                                break
-                camps = filtered_camps
-
-            # Filter by category
-            if filters.category:
-                filtered_camps = []
-                for camp in camps:
-                    for camp_cat in camp.get('camp_categories', []):
-                        category = camp_cat.get('categories')
-                        if category and filters.category.lower() in category.get('name', '').lower():
-                            filtered_camps.append(camp)
-                            break
-                camps = filtered_camps
-            
-            return {
-                "camps": camps,
-                "selected_location": selected_location
-            }
-            
+            return result.data
         except Exception as e:
-            logger.error(f"Error searching camps: {e}")
-            return {"camps": [], "selected_location": None}
+            logger.error(f"Error getting all camps: {e}")
+            return []
     
     async def get_camp_by_id(self, camp_id: int) -> Optional[Dict[str, Any]]:
-
+        """
+        Get a specific camp by ID
+        
+        Args:
+            camp_id: Camp ID to retrieve
+            
+        Returns:
+            Camp data or None if not found
+        """
         try:
             result = self.client.table('camps').select("""
                 *,
@@ -101,13 +100,17 @@ class SupabaseClient:
             """).eq('id', camp_id).execute()
             
             return result.data[0] if result.data else None
-            
         except Exception as e:
             logger.error(f"Error getting camp by ID {camp_id}: {e}")
             return None
     
     async def get_all_categories(self) -> List[Dict[str, Any]]:
-
+        """
+        Get all camp categories
+        
+        Returns:
+            List of categories
+        """
         try:
             result = self.client.table('categories').select('*').execute()
             return result.data
@@ -116,7 +119,12 @@ class SupabaseClient:
             return []
     
     async def get_all_locations(self) -> List[Dict[str, Any]]:
-
+        """
+        Get all camp locations
+        
+        Returns:
+            List of locations
+        """
         try:
             result = self.client.table('locations').select('*').execute()
             return result.data
@@ -125,13 +133,77 @@ class SupabaseClient:
             return []
     
     async def get_organizations(self) -> List[Dict[str, Any]]:
-
+        """
+        Get all organizations
+        
+        Returns:
+            List of organizations
+        """
         try:
             result = self.client.table('organizations').select('*').execute()
             return result.data
         except Exception as e:
             logger.error(f"Error getting organizations: {e}")
             return []
+    
+    async def search_camps_basic(self, **filters) -> List[Dict[str, Any]]:
+        """
+        Basic camp search with simple filters
+        
+        Args:
+            **filters: Filter parameters (min_grade, max_grade, min_price, max_price, etc.)
+            
+        Returns:
+            List of matching camps
+        """
+        try:
+            query = self.client.table('camps').select("""
+                *,
+                organizations(name, email, contact),
+                camp_sessions(
+                    *,
+                    locations(name, city, state, address, formatted_address, latitude, longitude)
+                ),
+                camp_categories(
+                    categories(name)
+                )
+            """)
+            
+            # Apply filters
+            if filters.get('min_grade') is not None:
+                query = query.gte('min_grade', filters['min_grade'])
+            if filters.get('max_grade') is not None:
+                query = query.lte('max_grade', filters['max_grade'])
+            if filters.get('min_price') is not None:
+                query = query.gte('price', filters['min_price'])
+            if filters.get('max_price') is not None:
+                query = query.lte('price', filters['max_price'])
+            
+            result = query.execute()
+            return result.data
+        except Exception as e:
+            logger.error(f"Error in basic camp search: {e}")
+            return []
 
 
-supabase_client = SupabaseClient()
+# Global Supabase client instance
+def create_supabase_client(supabase_url: str = None, supabase_key: str = None) -> SupabaseClient:
+    """
+    Factory function to create Supabase client
+    
+    Args:
+        supabase_url: Supabase project URL
+        supabase_key: Supabase API key
+        
+    Returns:
+        Configured SupabaseClient instance
+    """
+    return SupabaseClient(supabase_url, supabase_key)
+
+
+# Default client instance (uses environment variables)
+try:
+    supabase_client = SupabaseClient()
+except ValueError as e:
+    logger.warning(f"Could not create default Supabase client: {e}")
+    supabase_client = None
